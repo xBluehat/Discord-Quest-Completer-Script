@@ -71,14 +71,31 @@ const getModule = (filter) => {
 let ApplicationStreamingStore, RunningGameStore, QuestsStore, ChannelStore, GuildChannelStore, FluxDispatcher, api;
 
 try {
-    // Locate specific stores by checking their prototype methods
-    ApplicationStreamingStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getStreamerActiveStreamMetadata).exports.Z;
-    RunningGameStore = Object.values(wpRequire.c).find(x => x?.exports?.ZP?.getRunningGames).exports.ZP;
-    QuestsStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getQuest).exports.Z;
-    ChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getAllThreadsForParent).exports.Z;
-    GuildChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.ZP?.getSFWDefaultChannel).exports.ZP;
-    FluxDispatcher = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.flushWaitQueue).exports.Z;
-    api = Object.values(wpRequire.c).find(x => x?.exports?.tn?.get).exports.tn;
+    // Determine which export structure is used (Z vs A/Ay/h/Bo)
+    ApplicationStreamingStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getStreamerActiveStreamMetadata)?.exports?.Z;
+
+    if (!ApplicationStreamingStore) {
+        // Fallback for newer/different Discord builds
+        ApplicationStreamingStore = Object.values(wpRequire.c).find(x => x?.exports?.A?.__proto__?.getStreamerActiveStreamMetadata)?.exports?.A;
+        RunningGameStore = Object.values(wpRequire.c).find(x => x?.exports?.Ay?.getRunningGames)?.exports?.Ay;
+        QuestsStore = Object.values(wpRequire.c).find(x => x?.exports?.A?.__proto__?.getQuest)?.exports?.A;
+        ChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.A?.__proto__?.getAllThreadsForParent)?.exports?.A;
+        GuildChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.Ay?.getSFWDefaultChannel)?.exports?.Ay;
+        FluxDispatcher = Object.values(wpRequire.c).find(x => x?.exports?.h?.__proto__?.flushWaitQueue)?.exports?.h;
+        api = Object.values(wpRequire.c).find(x => x?.exports?.Bo?.get)?.exports?.Bo;
+    } else {
+        // Standard structure
+        RunningGameStore = Object.values(wpRequire.c).find(x => x?.exports?.ZP?.getRunningGames)?.exports?.ZP;
+        QuestsStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getQuest)?.exports?.Z;
+        ChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getAllThreadsForParent)?.exports?.Z;
+        GuildChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.ZP?.getSFWDefaultChannel)?.exports?.ZP;
+        FluxDispatcher = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.flushWaitQueue)?.exports?.Z;
+        api = Object.values(wpRequire.c).find(x => x?.exports?.tn?.get)?.exports?.tn;
+    }
+
+    if (!QuestsStore || !api) {
+        throw new Error("Critical modules could not be found.");
+    }
 
     logger.success("Internal Discord modules loaded successfully.");
 } catch (e) {
@@ -94,10 +111,10 @@ const supportedTasks = ["WATCH_VIDEO", "PLAY_ON_DESKTOP", "STREAM_ON_DESKTOP", "
 
 // Retrieve and filter active quests from the QuestsStore
 // Criteria: Enrolled, Not Completed, Not Expired, Supported Task Type
-let quests = [...QuestsStore.quests.values()].filter(x => 
-    x.userStatus?.enrolledAt && 
-    !x.userStatus?.completedAt && 
-    new Date(x.config.expiresAt).getTime() > Date.now() && 
+let quests = [...QuestsStore.quests.values()].filter(x =>
+    x.userStatus?.enrolledAt &&
+    !x.userStatus?.completedAt &&
+    new Date(x.config.expiresAt).getTime() > Date.now() &&
     supportedTasks.find(y => Object.keys((x.config.taskConfig ?? x.config.taskConfigV2).tasks).includes(y))
 );
 
@@ -112,9 +129,9 @@ if (quests.length === 0) {
     /**
      * Recursive function to process quests one by one.
      */
-    let doJob = function() {
+    let doJob = function () {
         const quest = quests.pop(); // Process LIFO
-        
+
         // Base case: No more quests
         if (!quest) {
             logger.success("All jobs completed!");
@@ -123,7 +140,7 @@ if (quests.length === 0) {
 
         // Generate a random Process ID (PID) to simulate a real application
         const pid = Math.floor(Math.random() * 30000) + 1000;
-        
+
         // Extract Quest Metadata
         const applicationId = quest.config.application.id;
         const applicationName = quest.config.application.name;
@@ -145,23 +162,23 @@ if (quests.length === 0) {
             const interval = 1;   // Loop delay
             const enrolledAt = new Date(quest.userStatus.enrolledAt).getTime();
             let completed = false;
-            
+
             let fn = async () => {
                 logger.info("Spoofing video playback...");
-                
+
                 while (true) {
                     // Calculate server-side logic validation boundaries
                     const maxAllowed = Math.floor((Date.now() - enrolledAt) / 1000) + maxFuture;
                     const diff = maxAllowed - secondsDone;
                     const timestamp = secondsDone + speed;
-                    
+
                     // Only send update if we are within allowed time boundaries
                     if (diff >= speed) {
-                        const res = await api.post({ 
-                            url: `/quests/${quest.id}/video-progress`, 
-                            body: { timestamp: Math.min(secondsNeeded, timestamp + Math.random()) } 
+                        const res = await api.post({
+                            url: `/quests/${quest.id}/video-progress`,
+                            body: { timestamp: Math.min(secondsNeeded, timestamp + Math.random()) }
                         });
-                        
+
                         completed = res.body.completed_at != null;
                         secondsDone = Math.min(secondsNeeded, timestamp);
                         logger.bar(secondsDone, secondsNeeded);
@@ -170,25 +187,25 @@ if (quests.length === 0) {
                     if (timestamp >= secondsNeeded) {
                         break;
                     }
-                    
+
                     // Wait before next heartbeat
                     await new Promise(resolve => setTimeout(resolve, interval * 1000));
                 }
-                
+
                 // Finalize completion if server hasn't confirmed yet
                 if (!completed) {
                     await api.post({ url: `/quests/${quest.id}/video-progress`, body: { timestamp: secondsNeeded } });
                     logger.bar(secondsNeeded, secondsNeeded);
                 }
-                
+
                 logger.success(`${questName} completed!`);
                 doJob(); // Next quest
             };
             fn();
-            
-        // --------------------------------------------------------------------
-        // HANDLER: PLAY_ON_DESKTOP (Game Mocking)
-        // --------------------------------------------------------------------
+
+            // --------------------------------------------------------------------
+            // HANDLER: PLAY_ON_DESKTOP (Game Mocking)
+            // --------------------------------------------------------------------
         } else if (taskName === "PLAY_ON_DESKTOP") {
             if (!isApp) {
                 logger.warn("PLAY_ON_DESKTOP behaves inconsistently in browsers. Please use the Desktop App.");
@@ -218,28 +235,28 @@ if (quests.length === 0) {
                     const fakeGames = [fakeGame];
                     const realGetRunningGames = RunningGameStore.getRunningGames;
                     const realGetGameForPID = RunningGameStore.getGameForPID;
-                    
+
                     // OVERRIDE: Inject our fake game into the Store
                     RunningGameStore.getRunningGames = () => fakeGames;
                     RunningGameStore.getGameForPID = (pid) => fakeGames.find(x => x.pid === pid);
-                    
+
                     // Notify Discord internals that a game "started"
                     FluxDispatcher.dispatch({ type: "RUNNING_GAMES_CHANGE", removed: realGames, added: [fakeGame], games: fakeGames });
-                    
+
                     logger.info(`Simulating game: ${applicationName}`);
                     logger.info(`Estimated wait time: ${Math.ceil((secondsNeeded - secondsDone) / 60)} minutes.`);
 
                     // Listener for heartbeat success (progress updates)
                     let fn = data => {
-                        let progress = quest.config.configVersion === 1 
-                            ? data.userStatus.streamProgressSeconds 
+                        let progress = quest.config.configVersion === 1
+                            ? data.userStatus.streamProgressSeconds
                             : Math.floor(data.userStatus.progress.PLAY_ON_DESKTOP.value);
-                            
+
                         logger.bar(progress, secondsNeeded);
 
                         if (progress >= secondsNeeded) {
                             logger.success(`${questName} completed!`);
-                            
+
                             // RESTORE: Cleanup and reset Store functions to original state
                             RunningGameStore.getRunningGames = realGetRunningGames;
                             RunningGameStore.getGameForPID = realGetGameForPID;
@@ -249,14 +266,14 @@ if (quests.length === 0) {
                             doJob(); // Next quest
                         }
                     };
-                    
+
                     // Subscribe to the heartbeat event
                     FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
                 });
             }
-        // --------------------------------------------------------------------
-        // HANDLER: STREAM_ON_DESKTOP
-        // --------------------------------------------------------------------
+            // --------------------------------------------------------------------
+            // HANDLER: STREAM_ON_DESKTOP
+            // --------------------------------------------------------------------
         } else if (taskName === "STREAM_ON_DESKTOP") {
             if (!isApp) {
                 logger.warn("Streaming quests require the Desktop App.");
@@ -274,15 +291,15 @@ if (quests.length === 0) {
                 logger.warn("NOTE: At least one other person or bot must be in the VC.");
 
                 let fn = data => {
-                    let progress = quest.config.configVersion === 1 
-                        ? data.userStatus.streamProgressSeconds 
+                    let progress = quest.config.configVersion === 1
+                        ? data.userStatus.streamProgressSeconds
                         : Math.floor(data.userStatus.progress.STREAM_ON_DESKTOP.value);
-                        
+
                     logger.bar(progress, secondsNeeded);
 
                     if (progress >= secondsNeeded) {
                         logger.success(`${questName} completed!`);
-                        
+
                         // Restore original function
                         ApplicationStreamingStore.getStreamerActiveStreamMetadata = realFunc;
                         FluxDispatcher.unsubscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
@@ -291,9 +308,9 @@ if (quests.length === 0) {
                 };
                 FluxDispatcher.subscribe("QUESTS_SEND_HEARTBEAT_SUCCESS", fn);
             }
-        // --------------------------------------------------------------------
-        // HANDLER: PLAY_ACTIVITY (Embedded Activities)
-        // --------------------------------------------------------------------
+            // --------------------------------------------------------------------
+            // HANDLER: PLAY_ACTIVITY (Embedded Activities)
+            // --------------------------------------------------------------------
         } else if (taskName === "PLAY_ACTIVITY") {
             // Find a valid channel (Private channel or first Guild Voice Channel)
             const channelId = ChannelStore.getSortedPrivateChannels()[0]?.id ?? Object.values(GuildChannelStore.getAllGuilds()).find(x => x != null && x.VOCAL.length > 0).VOCAL[0].channel.id;
@@ -324,7 +341,7 @@ if (quests.length === 0) {
             fn();
         }
     };
-    
+
     // Kick off the loop
     doJob();
 }
