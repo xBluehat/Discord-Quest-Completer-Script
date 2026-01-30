@@ -16,6 +16,7 @@ A specialized JavaScript script designed to automate the completion of Discord Q
     *   `PLAY_ACTIVITY` (Embedded Activities)
 *   **Visual Feedback:** Provides a clean, color-coded CLI output with real-time progress bars in the DevTools console.
 *   **Auto-Detection:** Automatically finds active, enrolled quests and processes them sequentially.
+*   **Multi-Build Compatibility:** Dynamic module discovery supports various Discord client builds (e.g., Stable, PTB, Canary) by scanning multiple export structures.
 
 ## 🚀 How to use this script
 
@@ -39,7 +40,7 @@ You can track the progress by looking at the `Quest progress:` prints in the Con
 The script leverages Discord's internal architecture:
 
 1.  **Webpack Interception:** It accesses `webpackChunkdiscord_app` to retrieve internal modules (the "Require" function).
-2.  **Store Retrieval:** It searches for specific Flux Stores (`RunningGameStore`, `ApplicationStreamingStore`, `QuestsStore`) to fetch status and inject data.
+2.  **Dynamic Store Retrieval:** It searches for specific Flux Stores (`RunningGameStore`, `ApplicationStreamingStore`, `QuestsStore`) using a fallback system that supports multiple internal export formats (Z/ZP and A/Ay/Bo).
 3.  **Process Mocking:**
     *   For **Gaming Quests**, it overrides `getRunningGames` to return a fake game object matching the Quest's Application ID.
     *   For **Video Quests**, it calculates the required watch time and sends progress updates to the API endpoints directly.
