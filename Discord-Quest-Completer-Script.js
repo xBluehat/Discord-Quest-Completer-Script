@@ -71,26 +71,39 @@ const getModule = (filter) => {
 let ApplicationStreamingStore, RunningGameStore, QuestsStore, ChannelStore, GuildChannelStore, FluxDispatcher, api;
 
 try {
-    // Determine which export structure is used (Z vs A/Ay/h/Bo)
-    ApplicationStreamingStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getStreamerActiveStreamMetadata)?.exports?.Z;
+    // 1. Try finding modules using the "Working" selectors provided (A/Ay/h/Bo + proto property)
+    const findModule = (filter) => Object.values(wpRequire.c).find(x => filter(x));
 
-    if (!ApplicationStreamingStore) {
-        // Fallback for newer/different Discord builds
-        ApplicationStreamingStore = Object.values(wpRequire.c).find(x => x?.exports?.A?.__proto__?.getStreamerActiveStreamMetadata)?.exports?.A;
-        RunningGameStore = Object.values(wpRequire.c).find(x => x?.exports?.Ay?.getRunningGames)?.exports?.Ay;
-        QuestsStore = Object.values(wpRequire.c).find(x => x?.exports?.A?.__proto__?.getQuest)?.exports?.A;
-        ChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.A?.__proto__?.getAllThreadsForParent)?.exports?.A;
-        GuildChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.Ay?.getSFWDefaultChannel)?.exports?.Ay;
-        FluxDispatcher = Object.values(wpRequire.c).find(x => x?.exports?.h?.__proto__?.flushWaitQueue)?.exports?.h;
-        api = Object.values(wpRequire.c).find(x => x?.exports?.Bo?.get)?.exports?.Bo;
-    } else {
-        // Standard structure
-        RunningGameStore = Object.values(wpRequire.c).find(x => x?.exports?.ZP?.getRunningGames)?.exports?.ZP;
-        QuestsStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getQuest)?.exports?.Z;
-        ChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.getAllThreadsForParent)?.exports?.Z;
-        GuildChannelStore = Object.values(wpRequire.c).find(x => x?.exports?.ZP?.getSFWDefaultChannel)?.exports?.ZP;
-        FluxDispatcher = Object.values(wpRequire.c).find(x => x?.exports?.Z?.__proto__?.flushWaitQueue)?.exports?.Z;
-        api = Object.values(wpRequire.c).find(x => x?.exports?.tn?.get)?.exports?.tn;
+    ApplicationStreamingStore = findModule(x => x?.exports?.A?.proto?.getStreamerActiveStreamMetadata)?.exports?.A;
+    RunningGameStore = findModule(x => x?.exports?.Ay?.getRunningGames)?.exports?.Ay;
+    QuestsStore = findModule(x => x?.exports?.A?.proto?.getQuest)?.exports?.A;
+    ChannelStore = findModule(x => x?.exports?.A?.proto?.getAllThreadsForParent)?.exports?.A;
+    GuildChannelStore = findModule(x => x?.exports?.Ay?.getSFWDefaultChannel)?.exports?.Ay;
+    FluxDispatcher = findModule(x => x?.exports?.h?.proto?.flushWaitQueue)?.exports?.h;
+    api = findModule(x => x?.exports?.Bo?.get)?.exports?.Bo;
+
+    // 2. If not found, fallback to Standard/Previous structures (Z/ZP, __proto__)
+    if (!ApplicationStreamingStore || !QuestsStore || !api) {
+        logger.info("New selectors failed, trying fallbacks...");
+
+        if (!ApplicationStreamingStore) ApplicationStreamingStore = findModule(x => x?.exports?.Z?.__proto__?.getStreamerActiveStreamMetadata)?.exports?.Z;
+        if (!RunningGameStore) RunningGameStore = findModule(x => x?.exports?.ZP?.getRunningGames)?.exports?.ZP;
+        if (!QuestsStore) QuestsStore = findModule(x => x?.exports?.Z?.__proto__?.getQuest)?.exports?.Z;
+        if (!ChannelStore) ChannelStore = findModule(x => x?.exports?.Z?.__proto__?.getAllThreadsForParent)?.exports?.Z;
+        if (!GuildChannelStore) GuildChannelStore = findModule(x => x?.exports?.ZP?.getSFWDefaultChannel)?.exports?.ZP;
+        if (!FluxDispatcher) FluxDispatcher = findModule(x => x?.exports?.Z?.__proto__?.flushWaitQueue)?.exports?.Z;
+        if (!api) api = findModule(x => x?.exports?.tn?.get)?.exports?.tn;
+    }
+
+    // 3. Last resort fallback (A/Ay/h/Bo but with __proto__)
+    if (!ApplicationStreamingStore || !QuestsStore || !api) {
+        if (!ApplicationStreamingStore) ApplicationStreamingStore = findModule(x => x?.exports?.A?.__proto__?.getStreamerActiveStreamMetadata)?.exports?.A;
+        if (!RunningGameStore) RunningGameStore = findModule(x => x?.exports?.Ay?.getRunningGames)?.exports?.Ay; // Often same as new check
+        if (!QuestsStore) QuestsStore = findModule(x => x?.exports?.A?.__proto__?.getQuest)?.exports?.A;
+        if (!ChannelStore) ChannelStore = findModule(x => x?.exports?.A?.__proto__?.getAllThreadsForParent)?.exports?.A;
+        if (!GuildChannelStore) GuildChannelStore = findModule(x => x?.exports?.Ay?.getSFWDefaultChannel)?.exports?.Ay;
+        if (!FluxDispatcher) FluxDispatcher = findModule(x => x?.exports?.h?.__proto__?.flushWaitQueue)?.exports?.h;
+        if (!api) api = findModule(x => x?.exports?.Bo?.get)?.exports?.Bo;
     }
 
     if (!QuestsStore || !api) {
@@ -213,7 +226,7 @@ if (quests.length === 0) {
                 // Fetch public application data to get accurate executable names
                 api.get({ url: `/applications/public?application_ids=${applicationId}` }).then(res => {
                     const appData = res.body[0];
-                    const exeName = appData.executables.find(x => x.os === "win32").name.replace(">", "");
+                    const exeName = appData.executables?.find(x => x.os === "win32")?.name?.replace(">", "") ?? appData.name.replace(/[\/\\:*?"<>|]/g, "");
 
                     // Construct a fake game process object
                     const fakeGame = {
