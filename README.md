@@ -21,17 +21,18 @@ A specialized JavaScript script designed to automate the completion of Discord Q
 ## 🚀 How to use this script
 
 1.  Accept a quest under **Discover -> Quests**.
-2.  Press `Ctrl+Shift+I` to open **DevTools**.
-3.  Go to the **Console** tab.
-4.  Paste the code from `Discord-Quest-Completer-Script.js` and hit enter.
-    
+2.  Add `"DANGEROUS_ENABLE_DEVTOOLS_ONLY_ENABLE_IF_YOU_KNOW_WHAT_YOURE_DOING": true` to `%appdata%/discord/settings.json`.
+3.  Press `Ctrl+Shift+I` to open **DevTools**.
+4.  Go to the **Console** tab.
+5.  Paste the code from `Discord-Quest-Completer-Script.js` and hit enter.
+
     > **Note:** If you're unable to paste into the console, you might have to type `allow pasting` and hit enter first.
 
-5.  Follow the printed instructions depending on what type of quest you have:
+6.  Follow the printed instructions depending on what type of quest you have:
     *   If your quest says to **"play"** the game or **watch a video**, you can just wait and do nothing.
     *   If your quest says to **"stream"** the game, join a VC with a friend or alt and stream *any* window.
-6.  Wait a bit for it to complete the quest.
-7.  You can now claim the reward!
+7.  Wait a bit for it to complete the quest.
+8.  You can now claim the reward!
 
 You can track the progress by looking at the `Quest progress:` prints in the Console tab, or by looking at the progress bar in the quests tab.
 
